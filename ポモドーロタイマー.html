@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ポモドーロタイマー</title>
+    <style>
+        /* CSS変数で色を管理し、カスタマイズしやすくします */
+        :root {
+            --work-bg: #d95550; /* 集中モードの背景色 */
+            --break-bg: #468b98; /* 休憩モードの背景色 */
+            --long-break-bg: #3e7582; /* 長期休憩の背景色 */
+            --button-bg: #ffffff;
+            --button-text: #333333;
+            --text-color: #ffffff;
+        }
+
+        body {
+            font-family: 'Helvetica', 'Arial', 'Hiragino Sans', 'Meiryo', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: var(--text-color);
+            transition: background-color 0.5s ease;
+        }
+
+        .pomodoro-container {
+            text-align: center;
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 40px 60px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        #mode-display {
+            font-size: 2rem;
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        #timer-display {
+            font-size: 7rem;
+            font-weight: bold;
+            margin-bottom: 30px;
+        }
+
+        .controls button {
+            background-color: var(--button-bg);
+            color: var(--button-text);
+            border: none;
+            padding: 15px 30px;
+            margin: 0 10px;
+            font-size: 1.2rem;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .controls button:active {
+            transform: translateY(1px);
+        }
+
+        #pomodoro-count-display {
+            margin-top: 30px;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="pomodoro-container">
+        <h1 id="mode-display">集中タイム</h1>
+        <div id="timer-display">25:00</div>
+        <div class="controls">
+            <button id="start-pause-btn">スタート</button>
+            <button id="reset-btn">リセット</button>
+        </div>
+        <p id="pomodoro-count-display">完了したポモドーロ: <span id="pomodoro-count">0</span></p>
+    </div>
+
+    <!-- 終了通知音のファイル -->
+    <audio id="alarm-sound" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" preload="auto"></audio>
+
+    <script>
+        // --- 設定項目 (ここを編集してカスタマイズできます) ---
+        const WORK_MINUTES = 25;       // 集中時間 (分)
+        const SHORT_BREAK_MINUTES = 5; // 短い休憩時間 (分)
+        const LONG_BREAK_MINUTES = 15; // 長い休憩時間 (分)
+        // ----------------------------------------------------
+
+        const timerDisplay = document.getElementById('timer-display');
+        const modeDisplay = document.getElementById('mode-display');
+        const startPauseBtn = document.getElementById('start-pause-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const pomodoroCountSpan = document.getElementById('pomodoro-count');
+        const alarmSound = document.getElementById('alarm-sound');
+        const body = document.body;
+
+        let timerInterval = null;
+        let isRunning = false;
+        let mode = 'work'; // 'work', 'shortBreak', 'longBreak'
+        let pomodorosCompleted = 0;
+        let totalSeconds = WORK_MINUTES * 60;
+        
+        function updateDisplay() {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            document.title = `${timerDisplay.textContent} - ${modeDisplay.textContent}`;
+        }
+
+        function switchMode() {
+            if (mode === 'work') {
+                pomodorosCompleted++;
+                pomodoroCountSpan.textContent = pomodorosCompleted;
+                if (pomodorosCompleted % 4 === 0) {
+                    mode = 'longBreak';
+                    totalSeconds = LONG_BREAK_MINUTES * 60;
+                    modeDisplay.textContent = '長期休憩';
+                    body.style.backgroundColor = 'var(--long-break-bg)';
+                } else {
+                    mode = 'shortBreak';
+                    totalSeconds = SHORT_BREAK_MINUTES * 60;
+                    modeDisplay.textContent = '休憩タイム';
+                    body.style.backgroundColor = 'var(--break-bg)';
+                }
+            } else {
+                mode = 'work';
+                totalSeconds = WORK_MINUTES * 60;
+                modeDisplay.textContent = '集中タイム';
+                body.style.backgroundColor = 'var(--work-bg)';
+            }
+            updateDisplay();
+        }
+
+        function tick() {
+            if (totalSeconds > 0) {
+                totalSeconds--;
+                updateDisplay();
+            } else {
+                clearInterval(timerInterval);
+                isRunning = false;
+                startPauseBtn.textContent = 'スタート';
+                alarmSound.play();
+                switchMode();
+                // 次のセッションを自動で開始したい場合は、以下のコメントを解除
+                // startTimer(); 
+            }
+        }
+        
+        function startTimer() {
+            isRunning = true;
+            startPauseBtn.textContent = '一時停止';
+            timerInterval = setInterval(tick, 1000);
+        }
+
+        function pauseTimer() {
+            isRunning = false;
+            startPauseBtn.textContent = '再開';
+            clearInterval(timerInterval);
+        }
+
+        startPauseBtn.addEventListener('click', () => {
+            if (isRunning) {
+                pauseTimer();
+            } else {
+                startTimer();
+            }
+        });
+
+        resetBtn.addEventListener('click', () => {
+            pauseTimer();
+            if (mode === 'work') {
+                totalSeconds = WORK_MINUTES * 60;
+            } else if (mode === 'shortBreak') {
+                totalSeconds = SHORT_BREAK_MINUTES * 60;
+            } else {
+                totalSeconds = LONG_BREAK_MINUTES * 60;
+            }
+            startPauseBtn.textContent = 'スタート';
+            updateDisplay();
+        });
+
+        // 初期表示
+        window.onload = () => {
+            body.style.backgroundColor = 'var(--work-bg)';
+            updateDisplay();
+        };
+
+    </script>
+</body>
+</html>
